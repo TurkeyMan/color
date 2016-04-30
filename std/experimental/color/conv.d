@@ -470,6 +470,8 @@ unittest
 
 package:
 
+import std.experimental.color.internal.normint;
+
 // convert between pixel data types
 To convertPixelType(To, From)(From v) if(isNumeric!From && isNumeric!To)
 {
@@ -497,118 +499,6 @@ To convertPixelType(To, From)(From v) if(isNumeric!From && isNumeric!To)
     }
     else
         return To(v);
-}
-
-
-// converts directly between fixed-point color types, without doing float conversions
-// ** this should be tested for performance; we can optimise the small->large conversions with table lookups
-To convertNormInt(To, From)(From i) if(isIntegral!To && isIntegral!From)
-{
-    import std.traits: isUnsigned, Unsigned;
-    template Iota(alias start, alias end)
-    {
-        static if(end == start)
-            alias Iota = TypeTuple!();
-        else
-            alias Iota = TypeTuple!(Iota!(start, end-1), end-1);
-    }
-    enum Bits(T) = T.sizeof*8;
-
-    static if(isUnsigned!To && isUnsigned!From)
-    {
-        static if(Bits!To <= Bits!From)
-            return To(i >> (Bits!From-Bits!To));
-        else
-        {
-            To r;
-            enum numReps = Bits!To/Bits!From;
-            foreach(j; Iota!(0, numReps))
-                r |= To(i) << (j*Bits!From);
-            return r;
-        }
-    }
-    else static if(isUnsigned!To)
-    {
-        if(i < 0) // if i is negative, return 0
-            return 0;
-        else
-        {
-            enum Sig = Bits!From-1;
-            static if(Bits!To < Bits!From)
-                return cast(To)(i >> (Sig-Bits!To));
-            else
-            {
-                To r;
-                enum numReps = Bits!To/Sig;
-                foreach(j; Iota!(1, numReps+1))
-                    r |= To(cast(Unsigned!From)(i&From.max)) << (Bits!To - j*Sig);
-                enum remain = Bits!To - numReps*Sig;
-                static if(remain)
-                    r |= cast(Unsigned!From)(i&From.max) >> (Sig - remain);
-                return r;
-            }
-        }
-    }
-    else static if(isUnsigned!From)
-    {
-        static if(Bits!To <= Bits!From)
-            return To(i >> (Bits!From-Bits!To+1));
-        else
-        {
-            Unsigned!To r;
-            enum numReps = Bits!To/Bits!From;
-            foreach(j; Iota!(0, numReps))
-                r |= Unsigned!To(i) << (j*Bits!From);
-            return To(r >> 1);
-        }
-    }
-    else
-    {
-        static if(Bits!To <= Bits!From)
-            return cast(To)(i >> (Bits!From-Bits!To));
-        else
-        {
-            enum Sig = Bits!From-1;
-            enum Fill = Bits!To - Bits!From;
-
-            To r = To(i) << Fill;
-            enum numReps = Fill/Sig;
-            foreach(j; Iota!(1, numReps+1))
-                r |= Unsigned!To(cast(Unsigned!From)(i&From.max)) << (Fill - j*Sig);
-            enum remain = Fill - numReps*Sig;
-            static if(remain)
-                r |= cast(Unsigned!From)(i&From.max) >> (Sig - remain);
-            return r;
-        }
-    }
-}
-
-unittest
-{
-    // static asserts since these should all ctfe:
-
-    // unsigned -> unsigned
-    static assert(convertNormInt!ubyte(ushort(0x3765)) == 0x37);
-    static assert(convertNormInt!ushort(ubyte(0x37)) == 0x3737);
-    static assert(convertNormInt!ulong(ubyte(0x35)) == 0x3535353535353535);
-
-    // signed -> unsigned
-    static assert(convertNormInt!ubyte(short(-61)) == 0);
-    static assert(convertNormInt!ubyte(short(0x3795)) == 0x6F);
-    static assert(convertNormInt!ushort(byte(0x37)) == 0x6EDD);
-    static assert(convertNormInt!ulong(byte(0x35)) == 0x6AD5AB56AD5AB56A);
-
-    // unsigned -> signed
-    static assert(convertNormInt!byte(ushort(0x3765)) == 0x1B);
-    static assert(convertNormInt!short(ubyte(0x37)) == 0x1B9B);
-    static assert(convertNormInt!long(ubyte(0x35)) == 0x1A9A9A9A9A9A9A9A);
-
-    // signed -> signed
-    static assert(convertNormInt!byte(short(0x3795)) == 0x37);
-    static assert(convertNormInt!byte(short(-28672)) == -112);
-    static assert(convertNormInt!short(byte(0x37)) == 0x376E);
-    static assert(convertNormInt!short(byte(-109)) == -27866);
-    static assert(convertNormInt!long(byte(-45)) == -3195498973398505005);
 }
 
 
