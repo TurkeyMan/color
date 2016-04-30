@@ -7,6 +7,7 @@ Currently supported colorspaces:
  - XYZ, xyY
  - RGB (sRGB, gamma, linear, custom colourspace; primaries, whitepoint, compression ramp)
  - HSV, HSL, HSI, HCY, HWB, HCG
+ - YUV, YCbCr, YcCbcCrc, YIQ, YDrDb
  - Lab, LCh
 
 Implements comprehensive conversion between supported colourspaces.
