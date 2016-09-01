@@ -13,7 +13,7 @@ module std.experimental.color.xyz;
 import std.experimental.color;
 import std.experimental.color.conv : convertColor;
 
-import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, Unqual;
+import std.traits : isInstanceOf, isFloatingPoint, isIntegral, isSigned, isSomeChar, Unqual;
 import std.typetuple : TypeTuple;
 import std.typecons : tuple;
 

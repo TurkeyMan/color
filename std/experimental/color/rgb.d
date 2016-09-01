@@ -12,6 +12,7 @@ module std.experimental.color.rgb;
 
 import std.experimental.color;
 import std.experimental.color.conv;
+import std.experimental.color.normint;
 
 import std.traits : isInstanceOf, isNumeric, isIntegral, isFloatingPoint, isSigned, isSomeChar, Unqual;
 import std.typetuple : TypeTuple;
@@ -85,8 +86,17 @@ struct RGB(string components_, ComponentType_, bool linear_ = false, RGBColorSpa
     static assert(anyIn!("rgbal", components), "RGB colors must contain at least one component of r, g, b, l, a.");
     static assert(!canFind!(components, 'l') || !anyIn!("rgb", components), "RGB colors may not contain rgb AND luminance components together.");
 
-    /** Type of the color components. */
-    alias ComponentType = ComponentType_;
+    static if(isFloatingPoint!ComponentType_)
+    {
+        /** Type of the color components. */
+        alias ComponentType = ComponentType_;
+    }
+    else
+    {
+        /** Type of the color components. */
+        alias ComponentType = NormalizedInt!ComponentType_;
+    }
+
     /** The color components that were specified. */
     enum string components = components_;
     /** The color space specified. */
@@ -177,6 +187,27 @@ struct RGB(string components_, ComponentType_, bool linear_ = false, RGBColorSpa
             this.a = a;
     }
 
+    static if(!isFloatingPoint!ComponentType_)
+    {
+        /** Construct a color from RGB and optional alpha values. */
+        this(ComponentType.IntType r, ComponentType.IntType g, ComponentType.IntType b, ComponentType.IntType a = defaultAlpha!(ComponentType.IntType))
+        {
+            foreach(c; TypeTuple!("r","g","b","a"))
+                mixin(ComponentExpression!("this._ = ComponentType(_);", c, null));
+            static if(canFind!(components, 'l'))
+                this.l = toGrayscale!(linear, colorSpace)(ComponentType(r), ComponentType(g), ComponentType(b)); // ** Contentious? I this this is most useful
+        }
+
+        /** Construct a color from a luminance and optional alpha value. */
+        this(ComponentType.IntType l, ComponentType.IntType a = defaultAlpha!(ComponentType.IntType))
+        {
+            foreach(c; TypeTuple!("l","r","g","b"))
+                mixin(ComponentExpression!("this._ = ComponentType(l);", c, null));
+            static if(canFind!(components, 'a'))
+                this.a = ComponentType(a);
+        }
+    }
+
     /** Construct a color from a hex string. */
     this(C)(const(C)[] hex) if(isSomeChar!C)
     {
@@ -214,6 +245,9 @@ struct RGB(string components_, ComponentType_, bool linear_ = false, RGBColorSpa
         static assert(-SignedRGBX(1,2,3) == SignedRGBX(-1,-2,-3));
         static assert(-FloatRGBA(1,2,3)  == FloatRGBA(-1,-2,-3));
 
+        static assert(~UnsignedRGB(1,2,3) == UnsignedRGB(0xFE,0xFD,0xFC));
+        static assert(~SignedRGBX(1,2,3)  == SignedRGBX(~1,~2,~3));
+
         static assert(UnsignedRGB(10,20,30)  + UnsignedRGB(4,5,6) == UnsignedRGB(14,25,36));
         static assert(SignedRGBX(10,20,30)   + SignedRGBX(4,5,6)  == SignedRGBX(14,25,36));
         static assert(FloatRGBA(10,20,30,40) + FloatRGBA(4,5,6,7) == FloatRGBA(14,25,36,47));
@@ -222,21 +256,29 @@ struct RGB(string components_, ComponentType_, bool linear_ = false, RGBColorSpa
         static assert(SignedRGBX(10,20,30)   - SignedRGBX(4,5,6)  == SignedRGBX(6,15,24));
         static assert(FloatRGBA(10,20,30,40) - FloatRGBA(4,5,6,7) == FloatRGBA(6,15,24,33));
 
-        static assert(UnsignedRGB(10,20,30)  * UnsignedRGB(0,1,2) == UnsignedRGB(0,20,60));
-        static assert(SignedRGBX(10,20,30)   * SignedRGBX(0,1,2)  == SignedRGBX(0,20,60));
-        static assert(FloatRGBA(10,20,30,40) * FloatRGBA(0,1,2,3) == FloatRGBA(0,20,60,120));
-
-        static assert(UnsignedRGB(10,20,30)  / UnsignedRGB(1,2,3) == UnsignedRGB(10,10,10));
-        static assert(SignedRGBX(10,20,30)   / SignedRGBX(1,2,3)  == SignedRGBX(10,10,10));
-        static assert(FloatRGBA(2,4,8,16)    / FloatRGBA(1,2,4,8) == FloatRGBA(2,2,2,2));
+        static assert(UnsignedRGB(10,20,30)  * UnsignedRGB(128,128,128) == UnsignedRGB(5,10,15));
+        static assert(SignedRGBX(10,20,30)   * SignedRGBX(-64,-64,-64)  == SignedRGBX(-5,-10,-15));
+        static assert(FloatRGBA(10,20,30,40) * FloatRGBA(0,1,2,3)       == FloatRGBA(0,20,60,120));
 
         static assert(UnsignedRGB(10,20,30)  * 2 == UnsignedRGB(20,40,60));
         static assert(SignedRGBX(10,20,30)   * 2 == SignedRGBX(20,40,60));
         static assert(FloatRGBA(10,20,30,40) * 2 == FloatRGBA(20,40,60,80));
 
-        static assert(UnsignedRGB(10,20,30)  / 2 == UnsignedRGB(5,10,15));
-        static assert(SignedRGBX(10,20,30)   / 2 == SignedRGBX(5,10,15));
-        static assert(FloatRGBA(10,20,30,40) / 2 == FloatRGBA(5,10,15,20));
+        static assert(UnsignedRGB(10,20,30)   / 2 == UnsignedRGB(5,10,15));
+        static assert(SignedRGBX(-10,-20,-30) / 2 == SignedRGBX(-5,-10,-15));
+        static assert(FloatRGBA(10,20,30,40)  / 2 == FloatRGBA(5,10,15,20));
+
+        static assert(UnsignedRGB(10,20,30)  * 2.0 == UnsignedRGB(20,40,60));
+        static assert(SignedRGBX(10,20,30)   * 2.0 == SignedRGBX(20,40,60));
+        static assert(FloatRGBA(10,20,30,40) * 2.0 == FloatRGBA(20,40,60,80));
+
+        static assert(UnsignedRGB(10,20,30)  / 0.5 == UnsignedRGB(20,40,60));
+        static assert(SignedRGBX(10,20,30)   / 0.5 == SignedRGBX(20,40,60));
+        static assert(FloatRGBA(10,20,30,40) / 0.5 == FloatRGBA(20,40,60,80));
+
+        static assert(UnsignedRGB(10,20,30)   / 2.0 == UnsignedRGB(5,10,15));
+        static assert(SignedRGBX(-10,-20,-30) / 2.0 == SignedRGBX(-5,-10,-15));
+        static assert(FloatRGBA(10,20,30,40)  / 2.0 == FloatRGBA(5,10,15,20));
     }
 
 private:
@@ -365,11 +407,10 @@ T toGrayscale(bool linear, RGBColorSpace colorSpace = RGBColorSpace.sRGB, T)(T r
         return YAxis[0]*r + YAxis[1]*g + YAxis[2]*b;
     }
 }
-T toGrayscale(bool linear, RGBColorSpace colorSpace = RGBColorSpace.sRGB, T)(T r, T g, T b) pure if(isIntegral!T)
+T toGrayscale(bool linear, RGBColorSpace colorSpace = RGBColorSpace.sRGB, T)(T r, T g, T b) pure if(is(T == NormalizedInt!U, U))
 {
-    import std.experimental.color.conv: convertPixelType;
     alias F = FloatTypeFor!T;
-    return convertPixelType!T(toGrayscale!(linear, colorSpace)(convertPixelType!F(r), convertPixelType!F(g), convertPixelType!F(b)));
+    return T(toGrayscale!(linear, colorSpace)(cast(F)r, cast(F)g, cast(F)b));
 }
 
 

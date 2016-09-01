@@ -14,12 +14,22 @@ import std.experimental.color;
 import std.experimental.color.rgb;
 import std.experimental.color.xyz;
 import std.experimental.color.hsx;
+import std.experimental.color.normint;
 
 import std.traits : isNumeric, isIntegral, isFloatingPoint, isSigned, isSomeChar, TemplateOf;
 import std.typetuple : TypeTuple;
 
 @safe pure nothrow @nogc:
 
+/**
+Detect whether $(D T) is a valid color component type.
+*/
+enum isColorComponentType(T) = isFloatingPoint!T || is(T == NormalizedInt!U, U);
+
+/**
+Detect whether $(D T) can represent a colour component.
+*/
+enum isColorScalarType(T) = isNumeric!T || is(T == NormalizedInt!U, U);
 
 /**
 Convert between color types.
@@ -79,15 +89,15 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
         else static if(From.colorSpace == To.colorSpace && From.linear == To.linear)
         {
             // color space is the same, just do type conversion
-            return To(convertPixelType!ToType(src[0]), convertPixelType!ToType(src[1]), convertPixelType!ToType(src[2]), convertPixelType!ToType(src[3]));
+            return To(cast(ToType)src[0], cast(ToType)src[1], cast(ToType)src[2], cast(ToType)src[3]);
         }
         else
         {
             // unpack the working values
             alias WorkType = WorkingType!(FromType, ToType);
-            WorkType r = convertPixelType!WorkType(src[0]);
-            WorkType g = convertPixelType!WorkType(src[1]);
-            WorkType b = convertPixelType!WorkType(src[2]);
+            WorkType r = cast(WorkType)src[0];
+            WorkType g = cast(WorkType)src[1];
+            WorkType b = cast(WorkType)src[2];
 
             static if(From.linear == false)
             {
@@ -112,9 +122,9 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
 
             // convert and return the output
             static if(To.hasAlpha)
-                return To(convertPixelType!ToType(r), convertPixelType!ToType(g), convertPixelType!ToType(b), convertPixelType!ToType(src[3]));
+                return To(cast(ToType)r, cast(ToType)g, cast(ToType)b, cast(ToType)src[3]);
             else
-                return To(convertPixelType!ToType(r), convertPixelType!ToType(g), convertPixelType!ToType(b));
+                return To(cast(ToType)r, cast(ToType)g, cast(ToType)b);
         }
     }
     else static if(isRGB!From && isXYZ!To)
@@ -125,9 +135,9 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
 
         // unpack the working values
         auto src = color.tristimulus;
-        WorkType r = convertPixelType!WorkType(src[0]);
-        WorkType g = convertPixelType!WorkType(src[1]);
-        WorkType b = convertPixelType!WorkType(src[2]);
+        WorkType r = cast(WorkType)src[0];
+        WorkType g = cast(WorkType)src[1];
+        WorkType b = cast(WorkType)src[2];
 
         static if(From.linear == false)
         {
@@ -157,7 +167,7 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
             v[2] = toGamma!(To.colorSpace)(v[2]);
         }
 
-        return To(convertPixelType!ToType(v[0]), convertPixelType!ToType(v[1]), convertPixelType!ToType(v[2]));
+        return To(cast(ToType)v[0], cast(ToType)v[1], cast(ToType)v[2]);
     }
 
     // *** xyY triplet ***
@@ -451,166 +461,24 @@ unittest
     // common hex formats supported:
 
     // 3 digits
-    static assert(colorFromString("F80") == RGB8(0xFF,0x88, 0x00));
-    static assert(colorFromString("#F80") == RGB8(0xFF,0x88, 0x00));
-    static assert(colorFromString("$F80") == RGB8(0xFF,0x88, 0x00));
-    static assert(colorFromString("0xF80") == RGB8(0xFF,0x88, 0x00));
+    static assert(colorFromString("F80") == RGB8(0xFF, 0x88, 0x00));
+    static assert(colorFromString("#F80") == RGB8(0xFF, 0x88, 0x00));
+    static assert(colorFromString("$F80") == RGB8(0xFF, 0x88, 0x00));
+    static assert(colorFromString("0xF80") == RGB8(0xFF, 0x88, 0x00));
 
     // 6 digits
-    static assert(colorFromString("FF8000") == RGB8(0xFF,0x80, 0x00));
-    static assert(colorFromString("#FF8000") == RGB8(0xFF,0x80, 0x00));
-    static assert(colorFromString("$FF8000") == RGB8(0xFF,0x80, 0x00));
-    static assert(colorFromString("0xFF8000") == RGB8(0xFF,0x80, 0x00));
+    static assert(colorFromString("FF8000") == RGB8(0xFF, 0x80, 0x00));
+    static assert(colorFromString("#FF8000") == RGB8(0xFF, 0x80, 0x00));
+    static assert(colorFromString("$FF8000") == RGB8(0xFF, 0x80, 0x00));
+    static assert(colorFromString("0xFF8000") == RGB8(0xFF, 0x80, 0x00));
 
     // 4/8 digita (/w alpha)
-    static assert(colorFromString!RGBA8("#8C41") == RGBA8(0xCC,0x44, 0x11, 0x88));
-    static assert(colorFromString!RGBA8("#80CC4401") == RGBA8(0xCC,0x44, 0x01, 0x80));
+    static assert(colorFromString!RGBA8("#8C41") == RGBA8(0xCC, 0x44, 0x11, 0x88));
+    static assert(colorFromString!RGBA8("#80CC4401") == RGBA8(0xCC, 0x44, 0x01, 0x80));
 }
 
 
 package:
-
-// convert between pixel data types
-To convertPixelType(To, From)(From v) if(isNumeric!From && isNumeric!To)
-{
-    static if(isIntegral!From && isIntegral!To)
-    {
-        // extending normalised integer types is not trivial
-        return convertNormInt!To(v);
-    }
-    else static if(isIntegral!From && isFloatingPoint!To)
-    {
-        import std.algorithm : max;
-        alias FP = FloatTypeFor!(From, To);
-        static if(isSigned!From) // max(c, -1) is the signed conversion followed by D3D, OpenGL, etc.
-            return To(max(v*FP(1.0/From.max), FP(-1.0)));
-        else
-            return To(v*FP(1.0/From.max));
-    }
-    else static if(isFloatingPoint!From && isIntegral!To)
-    {
-        alias FP = FloatTypeFor!(To, From);
-        // HACK: this is incomplete!
-        //       +0.5 rounding only works for positive numbers
-        //       we also need to clamp (saturate) [To.min, To.max]
-        return cast(To)(v*FP(To.max) + FP(0.5));
-    }
-    else
-        return To(v);
-}
-
-
-// converts directly between fixed-point color types, without doing float conversions
-// ** this should be tested for performance; we can optimise the small->large conversions with table lookups
-To convertNormInt(To, From)(From i) if(isIntegral!To && isIntegral!From)
-{
-    import std.traits: isUnsigned, Unsigned;
-    template Iota(alias start, alias end)
-    {
-        static if(end == start)
-            alias Iota = TypeTuple!();
-        else
-            alias Iota = TypeTuple!(Iota!(start, end-1), end-1);
-    }
-    enum Bits(T) = T.sizeof*8;
-
-    static if(isUnsigned!To && isUnsigned!From)
-    {
-        static if(Bits!To <= Bits!From)
-            return To(i >> (Bits!From-Bits!To));
-        else
-        {
-            To r;
-            enum numReps = Bits!To/Bits!From;
-            foreach(j; Iota!(0, numReps))
-                r |= To(i) << (j*Bits!From);
-            return r;
-        }
-    }
-    else static if(isUnsigned!To)
-    {
-        if(i < 0) // if i is negative, return 0
-            return 0;
-        else
-        {
-            enum Sig = Bits!From-1;
-            static if(Bits!To < Bits!From)
-                return cast(To)(i >> (Sig-Bits!To));
-            else
-            {
-                To r;
-                enum numReps = Bits!To/Sig;
-                foreach(j; Iota!(1, numReps+1))
-                    r |= To(cast(Unsigned!From)(i&From.max)) << (Bits!To - j*Sig);
-                enum remain = Bits!To - numReps*Sig;
-                static if(remain)
-                    r |= cast(Unsigned!From)(i&From.max) >> (Sig - remain);
-                return r;
-            }
-        }
-    }
-    else static if(isUnsigned!From)
-    {
-        static if(Bits!To <= Bits!From)
-            return To(i >> (Bits!From-Bits!To+1));
-        else
-        {
-            Unsigned!To r;
-            enum numReps = Bits!To/Bits!From;
-            foreach(j; Iota!(0, numReps))
-                r |= Unsigned!To(i) << (j*Bits!From);
-            return To(r >> 1);
-        }
-    }
-    else
-    {
-        static if(Bits!To <= Bits!From)
-            return cast(To)(i >> (Bits!From-Bits!To));
-        else
-        {
-            enum Sig = Bits!From-1;
-            enum Fill = Bits!To - Bits!From;
-
-            To r = To(i) << Fill;
-            enum numReps = Fill/Sig;
-            foreach(j; Iota!(1, numReps+1))
-                r |= Unsigned!To(cast(Unsigned!From)(i&From.max)) << (Fill - j*Sig);
-            enum remain = Fill - numReps*Sig;
-            static if(remain)
-                r |= cast(Unsigned!From)(i&From.max) >> (Sig - remain);
-            return r;
-        }
-    }
-}
-
-unittest
-{
-    // static asserts since these should all ctfe:
-
-    // unsigned -> unsigned
-    static assert(convertNormInt!ubyte(ushort(0x3765)) == 0x37);
-    static assert(convertNormInt!ushort(ubyte(0x37)) == 0x3737);
-    static assert(convertNormInt!ulong(ubyte(0x35)) == 0x3535353535353535);
-
-    // signed -> unsigned
-    static assert(convertNormInt!ubyte(short(-61)) == 0);
-    static assert(convertNormInt!ubyte(short(0x3795)) == 0x6F);
-    static assert(convertNormInt!ushort(byte(0x37)) == 0x6EDD);
-    static assert(convertNormInt!ulong(byte(0x35)) == 0x6AD5AB56AD5AB56A);
-
-    // unsigned -> signed
-    static assert(convertNormInt!byte(ushort(0x3765)) == 0x1B);
-    static assert(convertNormInt!short(ubyte(0x37)) == 0x1B9B);
-    static assert(convertNormInt!long(ubyte(0x35)) == 0x1A9A9A9A9A9A9A9A);
-
-    // signed -> signed
-    static assert(convertNormInt!byte(short(0x3795)) == 0x37);
-    static assert(convertNormInt!byte(short(-28672)) == -112);
-    static assert(convertNormInt!short(byte(0x37)) == 0x376E);
-    static assert(convertNormInt!short(byte(-109)) == -27866);
-    static assert(convertNormInt!long(byte(-45)) == -3195498973398505005);
-}
-
 
 // try and use the preferred float type
 // if the int type exceeds the preferred float precision, we'll upgrade the float
@@ -625,24 +493,24 @@ template FloatTypeFor(IntType, RequestedFloat = float)
 // find the fastest type to do format conversion without losing precision
 template WorkingType(From, To)
 {
-    static if(isIntegral!From && isIntegral!To)
+    static if(isFloatingPoint!From && isFloatingPoint!To)
+    {
+        static if(From.sizeof > To.sizeof)
+            alias WorkingType = From;
+        else
+            alias WorkingType = To;
+    }
+    else static if(isFloatingPoint!To)
+        alias WorkingType = To;
+    else static if(isFloatingPoint!From)
+        alias WorkingType = FloatTypeFor!To;
+    else
     {
         // small integer types can use float and not lose precision
         static if(From.sizeof <= 2 && To.sizeof <= 2)
             alias WorkingType = float;
         else
             alias WorkingType = double;
-    }
-    else static if(isIntegral!From && isFloatingPoint!To)
-        alias WorkingType = To;
-    else static if(isFloatingPoint!From && isIntegral!To)
-        alias WorkingType = FloatTypeFor!To;
-    else
-    {
-        static if(From.sizeof > To.sizeof)
-            alias WorkingType = From;
-        else
-            alias WorkingType = To;
     }
 }
 

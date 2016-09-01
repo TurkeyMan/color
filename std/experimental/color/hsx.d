@@ -2,7 +2,7 @@ module std.experimental.color.hsx;
 
 import std.experimental.color;
 
-import std.traits : isFloatingPoint, isIntegral, isSigned, isUnsigned, isSomeChar, Unqual;
+import std.traits : isInstanceOf, isFloatingPoint, isIntegral, isSigned, isUnsigned, isSomeChar, Unqual;
 import std.typetuple : TypeTuple;
 import std.typecons : tuple;
 

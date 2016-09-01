@@ -270,34 +270,37 @@ template ComponentExpression(string expression, string component, string op)
 
 mixin template ColorOperators(Components...)
 {
-    typeof(this) opUnary(string op)() const if(op == "+" || op == "-" || (op == "~" && isIntegral!ComponentType))
+    import std.traits : isNumeric, isIntegral;
+    import std.experimental.color.conv : isColorScalarType;
+
+    typeof(this) opUnary(string op)() const if(op == "+" || op == "-" || (op == "~" && is(ComponentType == NormalizedInt!U, U)))
     {
         Unqual!(typeof(this)) res = this;
         foreach(c; Components)
             mixin(ComponentExpression!("res._ = #_;", c, op));
         return res;
     }
-    typeof(this) opBinary(string op)(typeof(this) rh) const if(op == "+" || op == "-" || op == "*" || op == "/")
+    typeof(this) opBinary(string op)(typeof(this) rh) const if(op == "+" || op == "-" || op == "*")
     {
         Unqual!(typeof(this)) res = this;
         foreach(c; Components)
             mixin(ComponentExpression!("res._ #= rh._;", c, op));
         return res;
     }
-    typeof(this) opBinary(string op, S)(S rh) const if(isNumeric!S && (op == "*" || op == "/" || op == "^^"))
+    typeof(this) opBinary(string op, S)(S rh) const if(isColorScalarType!S && (op == "*" || op == "/" || op == "%" || op == "^^"))
     {
         Unqual!(typeof(this)) res = this;
         foreach(c; Components)
             mixin(ComponentExpression!("res._ #= rh;", c, op));
         return res;
     }
-    ref typeof(this) opOpAssign(string op)(typeof(this) rh) if(op == "+" || op == "-" || op == "*" || op == "/")
+    ref typeof(this) opOpAssign(string op)(typeof(this) rh) if(op == "+" || op == "-" || op == "*")
     {
         foreach(c; Components)
             mixin(ComponentExpression!("_ #= rh._;", c, op));
         return this;
     }
-    ref typeof(this) opOpAssign(string op, S)(S rh) if(isNumeric!S && (op == "*" || op == "/" || op == "^^"))
+    ref typeof(this) opOpAssign(string op, S)(S rh) if(isColorScalarType!S && (op == "*" || op == "/" || op == "%" || op == "^^"))
     {
         foreach(c; Components)
             mixin(ComponentExpression!("_ #= rh;", c, op));
