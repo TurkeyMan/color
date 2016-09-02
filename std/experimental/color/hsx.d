@@ -40,6 +40,12 @@ Alias for a HCY' color.
 */
 alias HCY(CT = float, RGBColorSpace cs = RGBColorSpace.sRGB) = HSx!(HSxType.HCY, CT, cs);
 
+
+
+
+alias HCG(CT = float, RGBColorSpace cs = RGBColorSpace.sRGB) = HSx!(HSxType.HCG, CT, cs);
+
+
 /**
 Define a HSx family colour type.
 */
@@ -52,7 +58,9 @@ enum HSxType
     /** Hue-saturation-intensity */
     HSI,
     /** Hue-chroma-luma */
-    HCY
+    HCY, 
+	
+	HCG
 }
 
 /**
@@ -94,6 +102,8 @@ private:
             alias Components = TypeTuple!("h","s","i");
         else static if(type == HSxType.HCY)
             alias Components = TypeTuple!("h","c","y");
+		else static if(type == HSxType.HCG)
+            alias Components = TypeTuple!("h","c","g");
     }
     alias ParentColourSpace = RGB!("rgb", CT, false, colorSpace_);
 }

@@ -232,6 +232,10 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
         {
             C = s;
         }
+		else static if(From.type == HSxType.HCG){
+			C = s;
+			m = x * (1.0 - C);
+		}
 
         WT H = h/60;
         WT X = C*(1 - abs(H%2.0 - 1));
@@ -308,6 +312,10 @@ To convertColor(To, From)(From color) if(isColor!To && isColor!From)
             x = YAxis[0]*r + YAxis[1]*g + YAxis[2]*b; // Luma'
             s = C; // Chroma
         }
+		else static if(To.type == HSxType.HCG){
+			s = C;
+			x = m / (1.0 - C);
+		}
 
         return To(convertPixelType!ToType(h), convertPixelType!ToType(s), convertPixelType!ToType(x));
     }
@@ -374,7 +382,8 @@ unittest
     alias HSLf = HSL!float;
     alias HSIf = HSI!float;
     alias HCYf = HCY!float;
-
+	alias HCGf = HCG!float;
+	
     static assert(cast(HSVf)RGB8(255, 0, 0) == HSVf(0, 1, 1));
     static assert(cast(RGB8)HSVf(0, 1, 1) == RGB8(255, 0, 0));
     static assert(cast(RGB8)HSVf(60, 0.5, 0.5) == RGB8(128, 128, 64));
