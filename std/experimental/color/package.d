@@ -374,7 +374,7 @@ Create a color from a string.
 May be a hex color in the standard forms: (#/$)rgb/argb/rrggbb/aarrggbb
 May also be the name of any color from the $(D_INLINECODE Colors) enum.
 */
-Color colorFromString(Color = RGB8)(const(char)[] str) pure @safe
+Color colorFromString(Color = RGB8)(scope const(char)[] str) pure @safe
 {
     return cast(Color)colorFromStringImpl(str);
 }
@@ -409,7 +409,7 @@ package:
 import std.traits : isInstanceOf, TemplateOf;
 import std.typetuple : TypeTuple;
 
-RGBA8 colorFromStringImpl(const(char)[] str) pure @safe
+RGBA8 colorFromStringImpl(scope const(char)[] str) pure @safe
 {
     import std.conv : ConvException;
 
