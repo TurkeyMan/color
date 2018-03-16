@@ -40,6 +40,8 @@ template WhitePoint(F) if (isFloatingPoint!F)
         D50 = xyY!F(0.34567, 0.35850, 1.00000),
         /** Mid-morning / Mid-afternoon Daylight */
         D55 = xyY!F(0.33242, 0.34743, 1.00000),
+        /** D60 illuminant; ACES */
+        D60 = xyY!F(0.32168, 0.33767, 1.00000),
         /** Noon Daylight: Television, sRGB color space */
         D65 = xyY!F(0.31271, 0.32902, 1.00000),
         /** North sky Daylight */
@@ -130,6 +132,9 @@ enum RGBColorSpace
     DCI_P3_D65,
     /** DCI-P3 Apple */
     DCI_P3_Apple,
+
+    /** ACES2065-1 (Academy Color Encoding System) */
+    ACES_1,
 }
 
 
@@ -237,6 +242,12 @@ F[3][3] chromaticAdaptationMatrix(ChromaticAdaptationMethod method = ChromaticAd
                  [F(0),      d[1]/s[1], F(0)     ],
                  [F(0),      F(0),      d[2]/s[2]]];
     return multiply!F(multiply!F(iMa, t), Ma);
+}
+
+/** Linear transfer function. This function performs no transformation. */
+T linearTransferFunc(T)(T v) if (isFloatingPoint!T)
+{
+    return v;
 }
 
 /** Linear to hybrid linear-gamma transfer function. The function and parameters are detailed in the example below. */
@@ -363,6 +374,8 @@ __gshared immutable RGBColorSpaceDesc!F[RGBColorSpace.max + 1] rgbColorSpaceDefs
     RGBColorSpaceDesc!F("DCI-P3 Theater",   &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.DCI, xyY!F(0.6800, 0.3200, 0.228975), xyY!F(0.2650, 0.6900, 0.691739), xyY!F(0.1500, 0.0600, 0.079287)),
     RGBColorSpaceDesc!F("DCI-P3 D65",       &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
     RGBColorSpaceDesc!F("DCI-P3 Apple",     &linearTosRGB!F,         &sRGBToLinear!F,         WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
+
+    RGBColorSpaceDesc!F("ACES2065-1",       &linearTransferFunc!F,   &linearTransferFunc!F,   WhitePoint!F.D60, xyY!F(0.7347, 0.2653, 1.0),      xyY!F(0.0000, 1.0000, 1.0),      xyY!F(0.0001,-0.0770, 1.0)),
 ];
 
 __gshared immutable F[3][3][ChromaticAdaptationMethod.max + 1] chromaticAdaptationMatrices(F) = [
