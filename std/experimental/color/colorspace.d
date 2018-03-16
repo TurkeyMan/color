@@ -130,6 +130,13 @@ enum RGBColorSpace
     DCI_P3_D65,
     /** DCI-P3 Apple */
     DCI_P3_Apple,
+
+    /** S-Gamut.Cine/S-Log3 */
+    SGamut3Cine_SLog3,
+    /** S-Gamut3/S-Log3 */
+    SGamut3_SLog3,
+    /** S-Gamut/S-Log2 */
+//    SGamut_SLog2,
 }
 
 
@@ -331,6 +338,25 @@ T gammaToLinear(T)(T v, T gamma) if (isFloatingPoint!T)
     return v^^T(gamma);
 }
 
+/** Linear to Sony S-Log3 transfer function. */
+T linearToSLog3(T)(T e) if(isFloatingPoint!T)
+{
+    import std.math : log10;
+
+    if (e >= T(0.01125000))
+        return (T(420.0) + log10((e + T(0.01)) / T(0.18 + 0.01))*T(261.5)) / T(1023.0);
+    else
+        return (e*T(171.2102946929 - 95.0) / T(0.01125000) + T(95.0)) / T(1023.0);
+}
+/** Sony S-Log3 to linear transfer function. */
+T SLog3ToLinear(T)(T e) if(isFloatingPoint!T)
+{
+    if (e >= T(171.2102946929 / 1023.0))
+        return (T(10.0) ^^ ((e*T(1023.0) - T(420.0)) / T(261.5))) * T(0.18 + 0.01) - T(0.01);
+    else
+        return (e*T(1023.0) - T(95.0))*T(0.01125000) / T(171.2102946929 - 95.0);
+}
+
 
 package:
 
@@ -363,6 +389,10 @@ __gshared immutable RGBColorSpaceDesc!F[RGBColorSpace.max + 1] rgbColorSpaceDefs
     RGBColorSpaceDesc!F("DCI-P3 Theater",   &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.DCI, xyY!F(0.6800, 0.3200, 0.228975), xyY!F(0.2650, 0.6900, 0.691739), xyY!F(0.1500, 0.0600, 0.079287)),
     RGBColorSpaceDesc!F("DCI-P3 D65",       &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
     RGBColorSpaceDesc!F("DCI-P3 Apple",     &linearTosRGB!F,         &sRGBToLinear!F,         WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
+
+    RGBColorSpaceDesc!F("S-Gamut.Cine/S-Log3",&linearToSLog3!F,      &SLog3ToLinear!F,        WhitePoint!F.D65, xyY!F(0.7660, 0.2750, 1.0),      xyY!F(0.2250, 0.8000, 1.0),      xyY!F(0.0890,-0.0870, 1.0)),
+    RGBColorSpaceDesc!F("S-Gamut3/S-Log3",  &linearToSLog3!F,        &SLog3ToLinear!F,        WhitePoint!F.D65, xyY!F(0.7300, 0.2800, 1.0),      xyY!F(0.1400, 0.1000, 1.0),      xyY!F(0.1500,-0.0500, 1.0)),
+//    RGBColorSpaceDesc!F("S-Gamut/S-Log2",   &linearToSLog2!F,        &SLog2ToLinear!F,        WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 1.0),      xyY!F(0.2650, 0.6900, 1.0),      xyY!F(0.1500, 0.0600, 1.0)),
 ];
 
 __gshared immutable F[3][3][ChromaticAdaptationMethod.max + 1] chromaticAdaptationMatrices(F) = [
