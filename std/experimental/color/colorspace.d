@@ -100,6 +100,8 @@ enum RGBColorSpace
     HDTV,
     /** UHDTV (ITU-R BT.2020) */
     UHDTV,
+    /** Hybrid Log-Gamma HDR UHDTV (ITU-R BT.2100 + HLG) */
+    HDR_HLG_UHDTV,
 
     /** Adobe RGB */
     AdobeRGB,
@@ -331,6 +333,31 @@ T gammaToLinear(T)(T v, T gamma) if (isFloatingPoint!T)
     return v^^T(gamma);
 }
 
+/** Linear to Hybrid Log-Gamma transfer function. */
+T linearToHLG(T)(T e) if(isFloatingPoint!T)
+{
+    import std.math : log, sqrt;
+
+    enum a = 0.17883277, b = 0.28466892, c = 0.55991073;
+
+    if (e <= 1)
+        return 0.5*sqrt(e);
+    else
+        return a*log(e - b) + c;
+}
+/** Hybrid Log-Gamma to linear transfer function. */
+T HLGToLinear(T)(T e) if(isFloatingPoint!T)
+{
+    import std.math : exp;
+
+    enum a = 0.17883277, b = 0.28466892, c = 0.55991073;
+
+    if (e <= 0.5)
+        return T(4.0)*e*e;
+    else
+        return exp((e - c)/a) + b;
+}
+
 
 package:
 
@@ -344,6 +371,7 @@ __gshared immutable RGBColorSpaceDesc!F[RGBColorSpace.max + 1] rgbColorSpaceDefs
     RGBColorSpaceDesc!F("PAL/SECAM",        &linearToRec601!F,       &rec601ToLinear!F,       WhitePoint!F.D65, xyY!F(0.6400, 0.3300, 0.299000), xyY!F(0.2900, 0.6000, 0.587000), xyY!F(0.1500, 0.0600, 0.114000)),
     RGBColorSpaceDesc!F("HDTV",             &linearToRec601!F,       &rec601ToLinear!F,       WhitePoint!F.D65, xyY!F(0.6400, 0.3300, 0.212600), xyY!F(0.3000, 0.6000, 0.715200), xyY!F(0.1500, 0.0600, 0.072200)),
     RGBColorSpaceDesc!F("UHDTV",            &linearToRec2020!F,      &rec2020ToLinear!F,      WhitePoint!F.D65, xyY!F(0.7080, 0.2920, 0.262700), xyY!F(0.1700, 0.7970, 0.678000), xyY!F(0.1310, 0.0460, 0.059300)),
+    RGBColorSpaceDesc!F("HDR HLG UHDTV",    &linearToHLG!F,          &HLGTolinear!F,          WhitePoint!F.D65, xyY!F(0.7080, 0.2920, 0.262698), xyY!F(0.1700, 0.7970, 0.678009), xyY!F(0.1310, 0.0460, 0.059293)),
 
     RGBColorSpaceDesc!F("Adobe RGB",        &linearToGamma!(2.2, F), &gammaToLinear!(2.2, F), WhitePoint!F.D65, xyY!F(0.6400, 0.3300, 0.297361), xyY!F(0.2100, 0.7100, 0.627355), xyY!F(0.1500, 0.0600, 0.075285)),
     RGBColorSpaceDesc!F("Wide Gamut RGB",   &linearToGamma!(2.2, F), &gammaToLinear!(2.2, F), WhitePoint!F.D50, xyY!F(0.7350, 0.2650, 0.258187), xyY!F(0.1150, 0.8260, 0.724938), xyY!F(0.1570, 0.0180, 0.016875)),
