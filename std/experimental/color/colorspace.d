@@ -130,6 +130,9 @@ enum RGBColorSpace
     DCI_P3_D65,
     /** DCI-P3 Apple */
     DCI_P3_Apple,
+
+    /** Fujifilm F-Log */
+    FLog,
 }
 
 
@@ -331,6 +334,31 @@ T gammaToLinear(T)(T v, T gamma) if (isFloatingPoint!T)
     return v^^T(gamma);
 }
 
+/** Linear to F-Log transfer function. */
+T linearToFlog(T)(T v) if (isFloatingPoint!T)
+{
+    import std.math : log10;
+
+    enum T a = 0.555556, b = 0.009468, c = 0.344676, d = 0.790453;
+    enum T e = 8.735631, f = 0.092864;
+
+    if (v >= T(0.00089))
+        return c*log10(a*v + b) + d;
+    else
+        return e*v + f;
+}
+/** F-Log to linear transfer function. */
+T fLogToLinear(T)(T v) if (isFloatingPoint!T)
+{
+    enum T a = 0.555556, b = 0.009468, c = 0.344676, d = 0.790453;
+    enum T e = 8.735631, f = 0.092864;
+
+    if (v >= T(0.100537775223865))
+        return (10^^((v - d)/c))/a - b/a;
+    else
+        return (v - f)/e;
+}
+
 
 package:
 
@@ -363,6 +391,8 @@ __gshared immutable RGBColorSpaceDesc!F[RGBColorSpace.max + 1] rgbColorSpaceDefs
     RGBColorSpaceDesc!F("DCI-P3 Theater",   &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.DCI, xyY!F(0.6800, 0.3200, 0.228975), xyY!F(0.2650, 0.6900, 0.691739), xyY!F(0.1500, 0.0600, 0.079287)),
     RGBColorSpaceDesc!F("DCI-P3 D65",       &linearToGamma!(2.6, F), &gammaToLinear!(2.6, F), WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
     RGBColorSpaceDesc!F("DCI-P3 Apple",     &linearTosRGB!F,         &sRGBToLinear!F,         WhitePoint!F.D65, xyY!F(0.6800, 0.3200, 0.228973), xyY!F(0.2650, 0.6900, 0.691752), xyY!F(0.1500, 0.0600, 0.079275)),
+
+    RGBColorSpaceDesc!F("F-Log",            &linearToFLog!F,         &fLogToLinear!F,         WhitePoint!F.D65, xyY!F(0.7080, 0.2920, 0.262698), xyY!F(0.1700, 0.7970, 0.678009), xyY!F(0.1310, 0.0460, 0.059293)),
 ];
 
 __gshared immutable F[3][3][ChromaticAdaptationMethod.max + 1] chromaticAdaptationMatrices(F) = [
