@@ -76,6 +76,8 @@ struct YUV(YUVType type_, ComponentType_ = ubyte, RGBColorSpace colorSpace_ = RG
     }
     else
     {
+        import std.experimental.normint;
+
         /** Type of the color components. */
         alias ComponentType = NormalizedInt!ComponentType_;
     }
@@ -226,9 +228,8 @@ package:
 //        static if (From.hasComponent!'l')
 
         auto c = cast(To.ParentColor)color;
-        auto src = c.tristimulus;
-
-        WorkType[3] yuv = multiply(mat, [src[0], src[1], src[2]]);
+        WorkType[3] src = [ c.tristimulus.expand ];
+        WorkType[3] yuv = multiply(mat, src);
 
         static if (type == YUVType.YcCbcCrc)
         {
@@ -278,7 +279,7 @@ private:
 void f()
 {
     import std.conv;
-    alias TGT = YUV!(ubyte, false, RGBColorSpace.HDTV);
+    alias TGT = YUV!(YUVType.YUV, ubyte, RGBColorSpace.sRGB);
     RGB8 c;
     TGT c2;
 
@@ -287,13 +288,13 @@ void f()
 
     pragma(msg, "to:");
     pragma(msg, "YCbCr ", toYUV!(YUVType.YCbCr, double, RGBColorSpace.NTSC));
-//    pragma(msg, "YIQ   ", toYUV!(YUVType.YIQ, double, RGBColorSpace.NTSC));
+    pragma(msg, "YIQ   ", toYUV!(YUVType.YIQ, double, RGBColorSpace.NTSC));
     pragma(msg, "YUV   ", toYUV!(YUVType.YUV, double, RGBColorSpace.PAL_SECAM));
     pragma(msg, "YUVHD ", toYUV!(YUVType.YUV, double, RGBColorSpace.HDTV));
     pragma(msg, "YDbDr ", toYUV!(YUVType.YDbDr, double, RGBColorSpace.PAL_SECAM));
     pragma(msg, "from:");
     pragma(msg, "YCbCr ", fromYUV!(YUVType.YCbCr, double, RGBColorSpace.NTSC));
-//    pragma(msg, "YIQ   ", fromYUV!(YUVType.YIQ, double, RGBColorSpace.NTSC));
+    pragma(msg, "YIQ   ", fromYUV!(YUVType.YIQ, double, RGBColorSpace.NTSC));
     pragma(msg, "YUV   ", fromYUV!(YUVType.YUV, double, RGBColorSpace.PAL_SECAM));
     pragma(msg, "YUVHD ", fromYUV!(YUVType.YUV, double, RGBColorSpace.HDTV));
     pragma(msg, "YDbDr ", fromYUV!(YUVType.YDbDr, double, RGBColorSpace.PAL_SECAM));
@@ -319,11 +320,7 @@ template toYUV(YUVType type, F, RGBColorSpace colorspace)
         enum U = F(0.5/(1 - B));
         enum V = F(0.5/(1 - R));
     }
-    else static if (type == YUVType.YIQ)
-    {
-        static assert(false, "Can't find a source for the YIQ conversion process!");
-    }
-    else static if (type == YUVType.YUV)
+    else static if (type == YUVType.YUV || type == YUVType.YIQ)
     {
         enum U = F(0.436/(1 - B));
         enum V = F(0.615/(1 - R));
@@ -334,9 +331,14 @@ template toYUV(YUVType type, F, RGBColorSpace colorspace)
         enum V = F(-1.333935/(1 - R));
     }
 
-    enum F[3][3] toYUV = [[  R,      G,      B     ],
-                          [ -R*U,   -G*U,    U-B*U ],
-                          [  V-R*V, -G*V,   -B*V   ]];
+    enum F[3][3] mat = [[  R,      G,      B     ],
+                        [ -R*U,   -G*U,    U-B*U ],
+                        [  V-R*V, -G*V,   -B*V   ]];
+
+    static if (type == YUVType.YIQ)
+        enum toYUV = multiply(YIQMat!F, mat);
+    else
+        alias toYUV = mat;
 }
 template fromYUV(YUVType type, F, RGBColorSpace colorspace)
 {
@@ -351,11 +353,7 @@ template fromYUV(YUVType type, F, RGBColorSpace colorspace)
         enum U = F(0.5);
         enum V = F(0.5);
     }
-    else static if (type == YUVType.YIQ)
-    {
-        static assert(false, "Can't find a source for the YIQ conversion process!");
-    }
-    else static if (type == YUVType.YUV)
+    else static if (type == YUVType.YUV || type == YUVType.YIQ)
     {
         enum U = F(0.436);
         enum V = F(0.615);
@@ -366,7 +364,25 @@ template fromYUV(YUVType type, F, RGBColorSpace colorspace)
         enum V = F(-1.333935);
     }
 
-    enum F[3][3] fromYUV = [[ F(1), F(0),           F(1-R)/V       ],
-                            [ F(1), F(B-1)*B/(U*G), F(R-1)*R/(V*G) ],
-                            [ F(1), F(1-B)/U,       F(0)           ]];
+    enum F[3][3] mat = [[ F(1), F(0),           F(1-R)/V       ],
+                        [ F(1), F(B-1)*B/(U*G), F(R-1)*R/(V*G) ],
+                        [ F(1), F(1-B)/U,       F(0)           ]];
+
+    static if (type == YUVType.YIQ)
+        enum fromYUV = multiply(mat, YIQMat!F);
+    else
+        alias fromYUV = mat;
+
+}
+
+template YIQMat(F)
+{
+    import std.math : sin, cos, PI;
+
+    // Germany knows the secret: https://de.wikipedia.org/wiki/YIQ-Farbmodell
+    enum F rad = PI * 33 / 180;
+    enum F s = sin(rad), c = cos(rad);
+    enum F[3][3] YIQMat = [[ 1,  0,  0 ],
+                           [ 0, -s,  c ],
+                           [ 0,  c,  s ]];
 }
